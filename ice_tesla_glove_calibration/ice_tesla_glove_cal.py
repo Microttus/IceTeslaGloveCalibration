@@ -33,7 +33,6 @@ class Fingers_servo(Enum):
     ring_servo = 4
     little_servo = 5
     palm_servo = 6
-    end_servo = 7
 
 
 class TeslaGloveServo:
@@ -126,9 +125,6 @@ class IceTeslaCalNode(Node):
         self.current_finger = Fingers(self.current_finger_index)
         self.current_servo = Fingers_servo(self.current_finger_index)
 
-        if self.current_servo == Fingers_servo(7):
-            self.stop()
-
         print('\n')
         print('We will now adjust servo connected to', self.current_finger.name, 'finger')
 
@@ -137,6 +133,8 @@ class IceTeslaCalNode(Node):
 
         if user_input == 'next':
             self.current_finger_index += 1
+            if self.current_finger_index > 6:
+                self.end_of_loop()
         elif user_input == 'min':
             min_pos = getattr(current_servo_obj, 'current_pos')
             setattr(current_servo_obj, 'pos_min', min_pos)
