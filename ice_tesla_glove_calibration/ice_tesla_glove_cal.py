@@ -4,6 +4,7 @@
 # 31/1-24 - UiA Grimstad
 # Maintainer: Martin Økter
 #
+import sys
 
 import rclpy
 from rclpy.node import Node
@@ -13,6 +14,8 @@ from geometry_msgs.msg import Twist
 
 from enum import Enum
 
+import csv
+
 
 class Fingers(Enum):
     thumb = 1
@@ -21,6 +24,7 @@ class Fingers(Enum):
     ring = 4
     little = 5
     palm = 6
+
 
 class Fingers_servo(Enum):
     thumb_servo = 1
@@ -61,9 +65,11 @@ class IceTeslaCalibration:
         self.middle_servo.current_pos = 90
         self.ring_servo.current_pos = 90
 
-    def test(self):
-        #self.set_thumb_servo(0, 180)
-        print('Test activated')
+    def set_min_states(self):
+        self.thumb_servo.current_pos = self.thumb_servo.pos_min
+        self.index_servo.current_pos = self.index_servo.pos_min
+        self.middle_servo.current_pos = self.middle_servo.pos_min
+        self.ring_servo.current_pos = self.ring_servo.pos_min
 
 
 class IceTeslaCalNode(Node):
@@ -84,10 +90,28 @@ class IceTeslaCalNode(Node):
         self.current_finger = Fingers(self.current_finger_index)
         self.current_servo = Fingers_servo(self.current_finger_index)
 
+        self.input_key_words = ['next', 'max', 'min', 'end']
+
+    def run(self):
+
+        try:
+            rclpy.spin(self)
+        except KeyboardInterrupt:
+            print('Shutdown due to keyboard interrupt ...')
+        except Exception:
+            print('--> Thank you for using the IceCube Haptic Glove Calibration')
+        finally:
+            self.stop()
+
+    def stop(self):
+        print('Shutting down ... \nNo cake for you I guess ...')
+        sys.exit()
+        # print('Ups, cant kill GLadOS')
+
     def user_input(self):
         while True:
-            user_input = input('New servo pos or next for next finger: ')
-            if user_input != 'next' and user_input != 'max' and user_input != 'min':
+            user_input = input('New servo pos or "next" for next finger: ')
+            if user_input not in self.input_key_words:
                 try:
                     user_input = int(user_input)
                     break
@@ -102,26 +126,53 @@ class IceTeslaCalNode(Node):
         self.current_finger = Fingers(self.current_finger_index)
         self.current_servo = Fingers_servo(self.current_finger_index)
 
-        print('We will now adjust servo connected to', self.current_finger.name)
+        print('\n')
+        print('We will now adjust servo connected to', self.current_finger.name, 'finger')
 
         user_input = self.user_input()
+        current_servo_obj = getattr(self.tesla_cal_, str(self.current_servo.name))
 
         if user_input == 'next':
             self.current_finger_index += 1
         elif user_input == 'min':
-            #self.thumb_calibration(int(user_input))
-            setattr(self.current_servo, 'pos_min', 80)
+            min_pos = getattr(current_servo_obj, 'current_pos')
+            setattr(current_servo_obj, 'pos_min', min_pos)
+            print('--> Min value of', self.current_finger.name, 'is set to:', min_pos)
         elif user_input == 'max':
-            #self.thumb_calibration(int(user_input))
-            print('Heio')
+            max_pos = getattr(current_servo_obj, 'current_pos')
+            setattr(current_servo_obj, 'pos_max', max_pos)
+            print('--> Max value of', self.current_finger.name, 'is set to:', max_pos)
+        elif user_input == 'end':
+            self.end_of_loop()
         else:
-            #self.thumb_calibration(int(user_input))
-            setattr(self.current_servo, 'current_pos', int(user_input))
+            setattr(current_servo_obj, 'current_pos', int(user_input))
+            print('--> Position of', self.current_finger.name, 'is set to:', user_input)
 
+    def end_of_loop(self):
+        profile_name = input('New profile name: ')
+
+        profile_data = [str(profile_name),
+                        self.tesla_cal_.thumb_servo.pos_min,
+                        self.tesla_cal_.thumb_servo.pos_max,
+                        self.tesla_cal_.index_servo.pos_min,
+                        self.tesla_cal_.index_servo.pos_max,
+                        self.tesla_cal_.middle_servo.pos_min,
+                        self.tesla_cal_.middle_servo.pos_max,
+                        self.tesla_cal_.ring_servo.pos_min,
+                        self.tesla_cal_.ring_servo.pos_max]
+
+        with open('icecube_tesla_glove_profiles.csv', 'a', newline='') as csv_file:
+            csv_writer = csv.writer(csv_file)
+            csv_writer.writerow(profile_data)
+
+        csv_file.close()
+
+        print('Profile data has been added!')
+        
+        raise Exception
 
 
     def timer_callback(self):
-        self.tesla_cal_.test()
         # self.get_logger().info('Ran the Hand Recognition')
 
         # Main switch for line of action
@@ -136,29 +187,20 @@ class IceTeslaCalNode(Node):
         self.publisher_.publish(msg)
         # self.get_logger().info('Publishing: "%s"' % msg.data)
 
-    def thumb_calibration(self, instance, value):
-
-        current_servo = str(self.current_finger.name + '_servo')
-
-        print(current_servo)
-
-
-        if self.tesla_cal_.thumb_servo.current_pos > 180:
-            self.tesla_cal_.thumb_servo.current_pos = 0
-
 
 def main(args=None):
     rclpy.init(args=args)
 
-    tesla_cal = IceTeslaCalNode()
+    tesla_cal_node = IceTeslaCalNode()
 
-    rclpy.spin(tesla_cal)
+    tesla_cal_node.run()
 
     # Destroy the node explicitly
     # (optional - otherwise it will be done automatically
     # when the garbage collector destroys the node object)
     # hand_gesture_publisher.destroy_node()
-    rclpy.shutdown()
+
+    # rclpy.shutdown()
 
 
 if __name__ == '__main__':
