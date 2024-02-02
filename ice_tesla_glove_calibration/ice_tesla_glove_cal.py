@@ -33,6 +33,7 @@ class Fingers_servo(Enum):
     ring_servo = 4
     little_servo = 5
     palm_servo = 6
+    end_servo = 7
 
 
 class TeslaGloveServo:
@@ -56,8 +57,8 @@ class IceTeslaCalibration:
         self.index_servo = TeslaGloveServo()
         self.middle_servo = TeslaGloveServo()
         self.ring_servo = TeslaGloveServo()
-        # self.little_servo = TeslaGloveServo()
-        # self.palm_servo = TeslaGloveServo()
+        self.little_servo = TeslaGloveServo()
+        self.palm_servo = TeslaGloveServo()
 
     def set_init_state(self):
         self.thumb_servo.current_pos = 90
@@ -93,7 +94,6 @@ class IceTeslaCalNode(Node):
         self.input_key_words = ['next', 'max', 'min', 'end']
 
     def run(self):
-
         try:
             rclpy.spin(self)
         except KeyboardInterrupt:
@@ -125,6 +125,9 @@ class IceTeslaCalNode(Node):
     def main_cal_loop(self):
         self.current_finger = Fingers(self.current_finger_index)
         self.current_servo = Fingers_servo(self.current_finger_index)
+
+        if self.current_servo == Fingers_servo(7):
+            self.stop()
 
         print('\n')
         print('We will now adjust servo connected to', self.current_finger.name, 'finger')
