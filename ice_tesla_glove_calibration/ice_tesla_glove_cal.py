@@ -11,6 +11,25 @@ from rclpy.node import Node
 from std_msgs.msg import String
 from geometry_msgs.msg import Twist
 
+from enum import Enum
+
+
+class Fingers(Enum):
+    thumb = 1
+    index = 2
+    middle = 3
+    ring = 4
+    little = 5
+    palm = 6
+
+class Fingers_servo(Enum):
+    thumb_servo = 1
+    index_servo = 2
+    middle_servo = 3
+    ring_servo = 4
+    little_servo = 5
+    palm_servo = 6
+
 
 class TeslaGloveServo:
     def __init__(self):
@@ -42,12 +61,9 @@ class IceTeslaCalibration:
         self.middle_servo.current_pos = 90
         self.ring_servo.current_pos = 90
 
-    def set_thumb(self):
-        self.thumb_servo.pos_min = 2
-        print(self.thumb_servo.pos_min)
-
     def test(self):
-        print(self.thumb_servo.current_pos)
+        #self.set_thumb_servo(0, 180)
+        print('Test activated')
 
 
 class IceTeslaCalNode(Node):
@@ -62,16 +78,73 @@ class IceTeslaCalNode(Node):
         self.tesla_cal_ = IceTeslaCalibration()
         self.tesla_cal_.set_init_state()
 
+        print('Welcome to the IceCube Calibration Application for the Haptic Tesla GLove')
+
+        self.current_finger_index = 1
+        self.current_finger = Fingers(self.current_finger_index)
+        self.current_servo = Fingers_servo(self.current_finger_index)
+
+    def user_input(self):
+        while True:
+            user_input = input('New servo pos or next for next finger: ')
+            if user_input != 'next' and user_input != 'max' and user_input != 'min':
+                try:
+                    user_input = int(user_input)
+                    break
+                except ValueError:
+                    print('Not a valid input')
+            else:
+                break
+
+        return user_input
+
+    def main_cal_loop(self):
+        self.current_finger = Fingers(self.current_finger_index)
+        self.current_servo = Fingers_servo(self.current_finger_index)
+
+        print('We will now adjust servo connected to', self.current_finger.name)
+
+        user_input = self.user_input()
+
+        if user_input == 'next':
+            self.current_finger_index += 1
+        elif user_input == 'min':
+            #self.thumb_calibration(int(user_input))
+            setattr(self.current_servo, 'pos_min', 80)
+        elif user_input == 'max':
+            #self.thumb_calibration(int(user_input))
+            print('Heio')
+        else:
+            #self.thumb_calibration(int(user_input))
+            setattr(self.current_servo, 'current_pos', int(user_input))
+
+
+
     def timer_callback(self):
-        self.tesla_cal_.set_init_state()
         self.tesla_cal_.test()
         # self.get_logger().info('Ran the Hand Recognition')
+
+        # Main switch for line of action
+        self.main_cal_loop()
 
         msg = Twist()
         # msg.data = control_string
         msg.linear.x = float(self.tesla_cal_.thumb_servo.current_pos)
+        msg.linear.y = float(self.tesla_cal_.index_servo.current_pos)
+        msg.linear.z = float(self.tesla_cal_.middle_servo.current_pos)
+        msg.angular.x = float(self.tesla_cal_.ring_servo.current_pos)
         self.publisher_.publish(msg)
         # self.get_logger().info('Publishing: "%s"' % msg.data)
+
+    def thumb_calibration(self, instance, value):
+
+        current_servo = str(self.current_finger.name + '_servo')
+
+        print(current_servo)
+
+
+        if self.tesla_cal_.thumb_servo.current_pos > 180:
+            self.tesla_cal_.thumb_servo.current_pos = 0
 
 
 def main(args=None):
